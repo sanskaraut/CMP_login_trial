@@ -115,7 +115,7 @@ app.get("/callback/:provider", async (req, res) => {
 });
 
 // Get logged-in user
-app.get("/get-user", (req, res) => {
+app.get("/getuser", (req, res) => {
   if (loggedInUser) {
     res.json(loggedInUser);
   } else {
