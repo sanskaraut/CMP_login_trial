@@ -90,7 +90,7 @@ app.get("/callback/:provider", async (req, res) => {
                     <p>You have successfully logged in. Redirecting to Unity...</p>
                     <script>
                         function showConfirmationDialog() {
-                            if (confirm("Login Successful. Do you want to return to Unity?")) {
+                            if (confirm("Login Successful.. Do you want to return to Unity?")) {
                                 window.location.href = "cmpvrapp://open";
                             }
                         }
