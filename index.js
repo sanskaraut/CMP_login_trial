@@ -91,7 +91,7 @@ app.get("/callback/:provider", async (req, res) => {
                     <script>
                         function showConfirmationDialog() {
                             if (confirm("Login Successful.. Do you want to return to Unity?")) {
-                                window.location.href = "cmpvrapp://open";
+                                window.location.href = "cmpvrapp://open./com.unity3d.player.UnityPlayerGameActivity";
                             }
                         }
                         setTimeout(() => {
