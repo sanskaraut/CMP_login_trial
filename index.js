@@ -43,7 +43,8 @@ app.get("/login/:provider", (req, res) => {
   res.redirect(url);
 });
 
-// OAuth callback handling with deep linking integration
+// OAuth callback handling
+
 app.get("/callback/:provider", async (req, res) => {
   const provider = req.params.provider;
   const code = req.query.code;
@@ -108,22 +109,13 @@ app.get("/callback/:provider", async (req, res) => {
 
     loggedInUser = userResponse.data;
 
-    // Redirect to the deep linking URL with the token parameter.
-    // This will trigger the Unity app on the Meta Quest 3 via the Android deep linking intent.
-    res.redirect(`cmpvrapp://open?token=${encodeURIComponent(accessToken)}`);
+    // ✅ Redirect user back to Unity using deep link
+    const unityDeepLink = `unity://callback?status=success&provider=${provider}&name=${encodeURIComponent(loggedInUser.name)}&email=${encodeURIComponent(loggedInUser.email)}`;
+    res.redirect(unityDeepLink);
   } catch (error) {
     console.error("OAuth Error:", error);
-    res.status(500).send("OAuth Login Failed.");
+    res.redirect("unity://callback?status=error");
   }
 });
 
-// Endpoint to get the logged-in user (optional fallback)
-app.get("/get-user", (req, res) => {
-  if (loggedInUser) {
-    res.json(loggedInUser);
-  } else {
-    res.status(401).json({ message: "User not logged in" });
-  }
-});
 
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
