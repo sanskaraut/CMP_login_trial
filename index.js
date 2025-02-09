@@ -1,11 +1,27 @@
-const express = require("express"); 
+const express = require("express");
 const axios = require("axios");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const session = require("express-session");
 
 dotenv.config();
 const app = express();
-app.use(cors());
+
+// Enable CORS with credentials so that session cookies can be exchanged
+app.use(cors({
+  origin: true, // Adjust to your allowed origins in production
+  credentials: true
+}));
+
+app.use(express.json());
+
+// Configure session management for per-client isolation
+app.use(session({
+  secret: 'your-secret-key', // Replace with a strong secret in production
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false } // Set secure:true when using HTTPS in production
+}));
 
 const PORT = 3000;
 const CLEVER_CLIENT_ID = process.env.CLEVER_CLIENT_ID;
@@ -21,9 +37,7 @@ const CLASSLINK_CLIENT_ID = process.env.CLASSLINK_CLIENT_ID;
 const CLASSLINK_CLIENT_SECRET = process.env.CLASSLINK_CLIENT_SECRET;
 const CLASSLINK_REDIRECT_URI = process.env.CLASSLINK_REDIRECT_URI;
 
-let loggedInUser = null;
-
-// Unified login routes
+// Unified login route
 app.get("/login/:provider", (req, res) => {
   const provider = req.params.provider;
   let url = "";
@@ -31,11 +45,12 @@ app.get("/login/:provider", (req, res) => {
   if (provider === "clever") {
     url = `https://clever.com/oauth/authorize?response_type=code&client_id=${CLEVER_CLIENT_ID}&redirect_uri=${CLEVER_REDIRECT_URI}`;
   } else if (provider === "google") {
-    url = `https://accounts.google.com/o/oauth2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${GOOGLE_REDIRECT_URI}&response_type=code&scope=email%20profile`;
+    // Append prompt=select_account to force a fresh login
+    url = `https://accounts.google.com/o/oauth2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${GOOGLE_REDIRECT_URI}&response_type=code&scope=email%20profile&prompt=select_account`;
   } else if (provider === "canva") {
     url = `https://api.canva.com/oauth/authorize?client_id=${CANVA_CLIENT_ID}&redirect_uri=${CANVA_REDIRECT_URI}&response_type=code&scope=user.read`;
   } else if (provider === "classlink") {
-    url = `https://launchpad.classlink.com/oauth2/v2/auth?response_type=code&client_id=${CLASSLINK_CLIENT_ID}&redirect_uri=${CLASSLINK_REDIRECT_URI}&scope=openid profile email`;
+    url = `https://launchpad.classlink.com/oauth2/v2/auth?response_type=code&client_id=${CLASSLINK_CLIENT_ID}&redirect_uri=${CLASSLINK_REDIRECT_URI}&scope=openid%20profile%20email`;
   } else {
     return res.status(400).send("Invalid provider");
   }
@@ -43,8 +58,7 @@ app.get("/login/:provider", (req, res) => {
   res.redirect(url);
 });
 
-// OAuth callback handling
-
+// OAuth callback handling with session storage
 app.get("/callback/:provider", async (req, res) => {
   const provider = req.params.provider;
   const code = req.query.code;
@@ -107,15 +121,34 @@ app.get("/callback/:provider", async (req, res) => {
     headers = { Authorization: `Bearer ${accessToken}` };
     const userResponse = await axios.get(userInfoUrl, { headers });
 
-    loggedInUser = userResponse.data;
+    // Save the user's login information in the session for this client.
+    req.session.user = userResponse.data;
 
-    // ✅ Redirect user back to Unity using deep link
-    const unityDeepLink = `unity://callback?status=success&provider=${provider}&name=${encodeURIComponent(loggedInUser.name)}&email=${encodeURIComponent(loggedInUser.email)}`;
-    res.redirect(unityDeepLink);
+    // Instead of deep linking, display a webpage message
+    res.send(`
+      <html>
+        <head>
+          <title>Login Successful</title>
+        </head>
+        <body>
+          <h1>Login Successful</h1>
+          <p>Please open your VR app to continue.</p>
+        </body>
+      </html>
+    `);
   } catch (error) {
     console.error("OAuth Error:", error);
-    res.redirect("unity://callback?status=error");
+    res.status(500).send("OAuth Login Failed.");
   }
 });
 
+// GET endpoint to retrieve the logged-in user for this session
+app.get("/get-user", (req, res) => {
+  if (req.session.user) {
+    res.json(req.session.user);
+  } else {
+    res.status(401).json({ message: "User not logged in" });
+  }
+});
 
+app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
