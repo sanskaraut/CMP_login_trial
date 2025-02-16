@@ -70,7 +70,7 @@ app.get("/callback/:provider", async (req, res) => {
     let tokenData = {};
     let userInfoUrl = "";
     let headers = {};
-
+    app.listen(PORT, () => console.log(`Login Request came from${provider}`));
     if (provider === "clever") {
       tokenUrl = "https://clever.com/oauth/tokens";
       tokenData = {
