@@ -3,19 +3,21 @@ const axios = require("axios");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const session = require("express-session");
+const jwt = require("jsonwebtoken");
 
 dotenv.config();
 const app = express();
 
-// Enable CORS with credentials so that session cookies can be exchanged
+// Enable CORS with credentials – in production, restrict origins appropriately.
 app.use(cors({
-  origin: true, // Adjust to your allowed origins in production
+  origin: process.env.ALLOWED_ORIGIN || "https://your-production-domain.com",
   credentials: true
 }));
 
 app.use(express.json());
 
-// Configure session management for per-client isolation
+// Configure session management (used during OAuth flow)
+// In a JWT solution the session is less critical for protecting endpoints.
 app.use(session({
   secret: 'your-secret-key', // Replace with a strong secret in production
   resave: false,
@@ -23,7 +25,10 @@ app.use(session({
   cookie: { secure: false } // Set secure:true when using HTTPS in production
 }));
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-very-secure-secret';
+
+// OAuth configuration variables
 const CLEVER_CLIENT_ID = process.env.CLEVER_CLIENT_ID;
 const CLEVER_CLIENT_SECRET = process.env.CLEVER_CLIENT_SECRET;
 const CLEVER_REDIRECT_URI = process.env.CLEVER_REDIRECT_URI;
@@ -58,7 +63,7 @@ app.get("/login/:provider", (req, res) => {
   res.redirect(url);
 });
 
-// OAuth callback handling with session storage
+// OAuth callback handling with JWT
 app.get("/callback/:provider", async (req, res) => {
   const provider = req.params.provider;
   const code = req.query.code;
@@ -70,7 +75,7 @@ app.get("/callback/:provider", async (req, res) => {
     let tokenData = {};
     let userInfoUrl = "";
     let headers = {};
-    app.listen(PORT, () => console.log(`Login Request came from${provider}`));
+
     if (provider === "clever") {
       tokenUrl = "https://clever.com/oauth/tokens";
       tokenData = {
@@ -78,7 +83,7 @@ app.get("/callback/:provider", async (req, res) => {
         client_id: CLEVER_CLIENT_ID,
         client_secret: CLEVER_CLIENT_SECRET,
         redirect_uri: CLEVER_REDIRECT_URI,
-        grant_type: "authorization_code",
+        grant_type: "authorization_code"
       };
       userInfoUrl = "https://api.clever.com/v1.1/me";
     } else if (provider === "google") {
@@ -88,7 +93,7 @@ app.get("/callback/:provider", async (req, res) => {
         client_id: GOOGLE_CLIENT_ID,
         client_secret: GOOGLE_CLIENT_SECRET,
         redirect_uri: GOOGLE_REDIRECT_URI,
-        grant_type: "authorization_code",
+        grant_type: "authorization_code"
       };
       userInfoUrl = "https://www.googleapis.com/oauth2/v2/userinfo";
     } else if (provider === "canva") {
@@ -98,7 +103,7 @@ app.get("/callback/:provider", async (req, res) => {
         client_id: CANVA_CLIENT_ID,
         client_secret: CANVA_CLIENT_SECRET,
         redirect_uri: CANVA_REDIRECT_URI,
-        grant_type: "authorization_code",
+        grant_type: "authorization_code"
       };
       userInfoUrl = "https://api.canva.com/v1/users/me";
     } else if (provider === "classlink") {
@@ -108,7 +113,7 @@ app.get("/callback/:provider", async (req, res) => {
         client_id: CLASSLINK_CLIENT_ID,
         client_secret: CLASSLINK_CLIENT_SECRET,
         redirect_uri: CLASSLINK_REDIRECT_URI,
-        grant_type: "authorization_code",
+        grant_type: "authorization_code"
       };
       userInfoUrl = "https://launchpad.classlink.com/oauth2/v2/userinfo";
     } else {
@@ -117,21 +122,34 @@ app.get("/callback/:provider", async (req, res) => {
 
     const tokenResponse = await axios.post(tokenUrl, tokenData);
     const accessToken = tokenResponse.data.access_token;
-
     headers = { Authorization: `Bearer ${accessToken}` };
     const userResponse = await axios.get(userInfoUrl, { headers });
 
-    // Save the user's login information in the session for this client.
+    // Store user data in the session if needed (for fallback or logging)
     req.session.user = userResponse.data;
 
-    // Instead of deep linking, display a webpage message
+    // Generate a JWT that securely encapsulates the user's data.
+    const jwtToken = jwt.sign({ user: userResponse.data }, JWT_SECRET, { expiresIn: '1h' });
+
+    // Return an HTML page with the JWT and a copy-to-clipboard button.
     res.send(`
       <html>
         <head>
           <title>Login Successful</title>
+          <script>
+            function copyToken() {
+              var tokenText = document.getElementById("token").innerText;
+              navigator.clipboard.writeText(tokenText)
+                .then(() => { alert("Token copied to clipboard!"); })
+                .catch((err) => { alert("Failed to copy token: " + err); });
+            }
+          </script>
         </head>
         <body>
           <h1>Login Successful</h1>
+          <p>Your JWT token is:</p>
+          <pre id="token">${jwtToken}</pre>
+          <button onclick="copyToken()">Copy Token to Clipboard</button>
           <p>Please open your VR app to continue.</p>
         </body>
       </html>
@@ -142,13 +160,22 @@ app.get("/callback/:provider", async (req, res) => {
   }
 });
 
-// GET endpoint to retrieve the logged-in user for this session
-app.get("/get-user", (req, res) => {
-  if (req.session.user) {
-    res.json(req.session.user);
-  } else {
-    res.status(401).json({ message: "User not logged in" });
-  }
+// Middleware to verify JWT on protected endpoints.
+function verifyJWT(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ message: "No token provided" });
+  
+  const token = authHeader.split(" ")[1];
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(401).json({ message: "Invalid token" });
+    req.user = decoded.user;
+    next();
+  });
+}
+
+// GET endpoint to retrieve the logged-in user's info via JWT.
+app.get("/get-user", verifyJWT, (req, res) => {
+  res.json(req.user);
 });
 
 app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
