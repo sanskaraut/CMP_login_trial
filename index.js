@@ -125,7 +125,7 @@ app.get("/callback/:provider", async (req, res) => {
     headers = { Authorization: `Bearer ${accessToken}` };
     const userResponse = await axios.get(userInfoUrl, { headers });
 
-    // Store user data in the session if needed (for fallback or logging)
+    // Optionally, store user data in session for logging
     req.session.user = userResponse.data;
 
     // Generate a JWT that securely encapsulates the user's data.
