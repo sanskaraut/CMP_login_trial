@@ -32,12 +32,6 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-very-secure-secret';
 const CLEVER_CLIENT_ID = process.env.CLEVER_CLIENT_ID;
 const CLEVER_CLIENT_SECRET = process.env.CLEVER_CLIENT_SECRET;
 const CLEVER_REDIRECT_URI = process.env.CLEVER_REDIRECT_URI;
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
-const CANVA_CLIENT_ID = process.env.CANVA_CLIENT_ID;
-const CANVA_CLIENT_SECRET = process.env.CANVA_CLIENT_SECRET;
-const CANVA_REDIRECT_URI = process.env.CANVA_REDIRECT_URI;
 const CLASSLINK_CLIENT_ID = process.env.CLASSLINK_CLIENT_ID;
 const CLASSLINK_CLIENT_SECRET = process.env.CLASSLINK_CLIENT_SECRET;
 const CLASSLINK_REDIRECT_URI = process.env.CLASSLINK_REDIRECT_URI;
@@ -49,11 +43,6 @@ app.get("/login/:provider", (req, res) => {
 
   if (provider === "clever") {
     url = `https://clever.com/oauth/authorize?response_type=code&client_id=${CLEVER_CLIENT_ID}&redirect_uri=${CLEVER_REDIRECT_URI}`;
-  } else if (provider === "google") {
-    // Append prompt=select_account to force a fresh login
-    url = `https://accounts.google.com/o/oauth2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${GOOGLE_REDIRECT_URI}&response_type=code&scope=email%20profile&prompt=select_account`;
-  } else if (provider === "canva") {
-    url = `https://api.canva.com/oauth/authorize?client_id=${CANVA_CLIENT_ID}&redirect_uri=${CANVA_REDIRECT_URI}&response_type=code&scope=user.read`;
   } else if (provider === "classlink") {
     url = `https://launchpad.classlink.com/oauth2/v2/auth?response_type=code&client_id=${CLASSLINK_CLIENT_ID}&redirect_uri=${CLASSLINK_REDIRECT_URI}&scope=openid%20profile%20email`;
   } else {
@@ -86,26 +75,6 @@ app.get("/callback/:provider", async (req, res) => {
         grant_type: "authorization_code"
       };
       userInfoUrl = "https://api.clever.com/v1.1/me";
-    } else if (provider === "google") {
-      tokenUrl = "https://oauth2.googleapis.com/token";
-      tokenData = {
-        code,
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
-        redirect_uri: GOOGLE_REDIRECT_URI,
-        grant_type: "authorization_code"
-      };
-      userInfoUrl = "https://www.googleapis.com/oauth2/v2/userinfo";
-    } else if (provider === "canva") {
-      tokenUrl = "https://api.canva.com/oauth/token";
-      tokenData = {
-        code,
-        client_id: CANVA_CLIENT_ID,
-        client_secret: CANVA_CLIENT_SECRET,
-        redirect_uri: CANVA_REDIRECT_URI,
-        grant_type: "authorization_code"
-      };
-      userInfoUrl = "https://api.canva.com/v1/users/me";
     } else if (provider === "classlink") {
       tokenUrl = "https://launchpad.classlink.com/oauth2/v2/token";
       tokenData = {
